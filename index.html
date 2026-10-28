@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéMinas – Buscaminas Pokémon</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    :root {
+      --red: #cc0000;
+      --yellow: #ffcb05;
+      --blue: #3d7dca;
+      --dark: #1a1a2e;
+      --panel: #16213e;
+      --cell: #0f3460;
+      --cell-open: #1a1a2e;
+      --border: #e94560;
+      --text: #fff;
+      --safe1: #a8d8a8;
+      --safe2: #ffcb05;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--dark);
+      font-family: 'Press Start 2P', monospace;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 10px 40px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    header h1 {
+      font-size: clamp(14px, 3vw, 26px);
+      color: var(--yellow);
+      text-shadow: 3px 3px 0 var(--red);
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    header p { font-size: 8px; color: #aaa; }
+
+    /* ── POKÉBALL decorativa ── */
+    .pokeball {
+      width: 60px; height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(to bottom, var(--red) 50%, #fff 50%);
+      border: 4px solid #222;
+      position: relative;
+      margin: 0 auto 16px;
+      box-shadow: 0 0 20px rgba(204,0,0,.5);
+    }
+    .pokeball::before {
+      content: '';
+      position: absolute;
+      width: 100%; height: 4px;
+      background: #222;
+      top: 50%; transform: translateY(-50%);
+    }
+    .pokeball::after {
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      border: 4px solid #222;
+      top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+    }
+
+    /* ── PANEL DE CONTROL ── */
+    .controls {
+      background: var(--panel);
+      border: 3px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      width: 100%;
+      max-width: 700px;
+    }
+
+    .stat-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .stat-box span:first-child { font-size: 7px; color: #aaa; }
+    .stat-box span:last-child  { font-size: 16px; color: var(--yellow); }
+
+    select, button {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 2px solid var(--border);
+    }
+    select { background: var(--cell); color: #fff; }
+
+    button#btnNew {
+      background: var(--red);
+      color: #fff;
+      font-size: 9px;
+      padding: 10px 18px;
+      box-shadow: 0 4px 0 #880000;
+      transition: transform .1s, box-shadow .1s;
+    }
+    button#btnNew:active { transform: translateY(3px); box-shadow: none; }
+
+    /* ── MENSAJE DE ESTADO ── */
+    #status {
+      font-size: 10px;
+      min-height: 20px;
+      margin-bottom: 12px;
+      color: var(--yellow);
+      text-align: center;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    /* ── TABLERO ── */
+    #board-wrap {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+    #board {
+      display: grid;
+      gap: 3px;
+      background: var(--border);
+      padding: 3px;
+      border-radius: 8px;
+      border: 3px solid var(--yellow);
+      box-shadow: 0 0 30px rgba(255,203,5,.25);
+    }
+
+    .cell {
+      width: 40px; height: 40px;
+      background: var(--cell);
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      cursor: pointer;
+      user-select: none;
+      border: 2px solid #0a2a50;
+      transition: background .12s, transform .08s;
+      position: relative;
+    }
+    .cell:hover:not(.open):not(.flagged) {
+      background: #1a4a80;
+      transform: scale(1.05);
+    }
+    .cell.open {
+      background: var(--cell-open);
+      cursor: default;
+      border-color: #0d0d1e;
+    }
+    .cell.flagged { background: #1e3a5f; }
+    .cell.mine-hit { background: #cc0000 !important; }
+
+    /* números de proximidad */
+    .cell.open .num {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .n1 { color: #7ec8e3; }
+    .n2 { color: #a8d8a8; }
+    .n3 { color: #ff9f9f; }
+    .n4 { color: #ce93d8; }
+    .n5 { color: #ffab91; }
+    .n6 { color: #80deea; }
+    .n7 { color: #f48fb1; }
+    .n8 { color: #fff; }
+
+    /* ── OVERLAY fin de partida ── */
+    #overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #overlay.show { display: flex; }
+    .overlay-box {
+      background: var(--panel);
+      border: 4px solid var(--yellow);
+      border-radius: 16px;
+      padding: 32px 40px;
+      text-align: center;
+      max-width: 380px;
+    }
+    .overlay-box h2 { font-size: 18px; margin-bottom: 16px; }
+    .overlay-box p  { font-size: 9px; color: #ccc; margin-bottom: 24px; line-height: 1.8; }
+    .overlay-box button {
+      background: var(--yellow);
+      color: #000;
+      border: none;
+      font-size: 10px;
+      padding: 12px 24px;
+    }
+
+    /* ── LEYENDA ── */
+    .legend {
+      margin-top: 20px;
+      font-size: 7px;
+      color: #777;
+      text-align: center;
+      line-height: 2;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="pokeball"></div>
+    <h1>⚡ PokéMinas ⚡</h1>
+    <p>Encuentra a todos los Pokémon sin pisar a los Legendarios</p>
+  </header>
+
+  <div class="controls">
+    <div class="stat-box">
+      <span>Nivel</span>
+      <select id="difficulty">
+        <option value="easy">Fácil 9×9 · 10💥</option>
+        <option value="medium" selected>Normal 16×16 · 40💥</option>
+        <option value="hard">Difícil 20×20 · 80💥</option>
+        <option value="expert">Experto 24×24 · 130💥</option>
+      </select>
+    </div>
+    <div class="stat-box">
+      <span>💥 restantes</span>
+      <span id="mineCount">40</span>
+    </div>
+    <div class="stat-box">
+      <span>⏱ tiempo</span>
+      <span id="timer">0</span>
+    </div>
+    <button id="btnNew">▶ Nueva partida</button>
+  </div>
+
+  <div id="status">¡Haz clic para empezar!</div>
+  <div id="board-wrap"><div id="board"></div></div>
+
+  <div id="overlay">
+    <div class="overlay-box">
+      <h2 id="overlayTitle"></h2>
+      <p id="overlayMsg"></p>
+      <button onclick="newGame()">▶ Jugar de nuevo</button>
+    </div>
+  </div>
+
+  <div class="legend">
+    Click izquierdo → Revelar celda &nbsp;|&nbsp; Click derecho → Marcar 🚩<br>
+    💥 = Legendario (mina) &nbsp;|&nbsp; 🚩 = Marcado &nbsp;|&nbsp; ⬜ = Seguro
+  </div>
+
+  <script>
+  // ── Pokémon disponibles ─────────────────────────────────────────────────
+  const SAFE_POKEMON = [
+    '🐢','🦎','🐸','🦋','🐝','🦆','🐧','🦜',
+    '🐟','🐠','🐡','🦈','🐙','🦑','🦀','🦞',
+    '🐇','🐿️','🦔','🐈','🦊','🐺','🐻','🦁',
+    '🐮','🐷','🐸','🐵','🦧','🐨','🐼','🦘',
+  ];
+  const MINE_EMOJI  = '💥'; // Legendario
+  const FLAG_EMOJI  = '🚩';
+  const HIDDEN_EMOJI = '⬜';
+
+  // ── Config de dificultad ─────────────────────────────────────────────────
+  const LEVELS = {
+    easy:   { rows:  9, cols:  9, mines:  10 },
+    medium: { rows: 16, cols: 16, mines:  40 },
+    hard:   { rows: 20, cols: 20, mines:  80 },
+    expert: { rows: 24, cols: 24, mines: 130 },
+  };
+
+  // ── Estado ────────────────────────────────────────────────────────────────
+  let board, rows, cols, mines, revealed, flagged,
+      started, lost, won, timerInterval, seconds,
+      cellPokemons;
+
+  // ── Inicializar ───────────────────────────────────────────────────────────
+  function newGame() {
+    clearInterval(timerInterval);
+    const lvl = LEVELS[document.getElementById('difficulty').value];
+    rows = lvl.rows; cols = lvl.cols; mines = lvl.mines;
+
+    board       = Array.from({length: rows}, () => Array(cols).fill(0));
+    revealed    = Array.from({length: rows}, () => Array(cols).fill(false));
+    flagged     = Array.from({length: rows}, () => Array(cols).fill(false));
+    cellPokemons= Array.from({length: rows}, () =>
+                    Array.from({length: cols}, () =>
+                      SAFE_POKEMON[Math.floor(Math.random()*SAFE_POKEMON.length)]));
+    started = false; lost = false; won = false; seconds = 0;
+
+    document.getElementById('mineCount').textContent = mines;
+    document.getElementById('timer').textContent = '0';
+    document.getElementById('status').textContent = '¡Haz clic para empezar!';
+    document.getElementById('overlay').classList.remove('show');
+
+    renderBoard();
+  }
+
+  // ── Colocar minas (evitando primera celda) ────────────────────────────────
+  function placeMines(safeR, safeC) {
+    let placed = 0;
+    while (placed < mines) {
+      const r = Math.floor(Math.random()*rows);
+      const c = Math.floor(Math.random()*cols);
+      if (board[r][c] === -1) continue;
+      if (Math.abs(r-safeR)<=1 && Math.abs(c-safeC)<=1) continue;
+      board[r][c] = -1;
+      placed++;
+    }
+    // calcular números
+    for (let r=0; r<rows; r++)
+      for (let c=0; c<cols; c++)
+        if (board[r][c] !== -1)
+          board[r][c] = neighbors(r,c).filter(([nr,nc])=>board[nr][nc]===-1).length;
+  }
+
+  function neighbors(r,c) {
+    const res = [];
+    for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++) {
+      if (!dr && !dc) continue;
+      const nr=r+dr, nc=c+dc;
+      if (nr>=0&&nr<rows&&nc>=0&&nc<cols) res.push([nr,nc]);
+    }
+    return res;
+  }
+
+  // ── Render tablero ────────────────────────────────────────────────────────
+  function renderBoard() {
+    const bd = document.getElementById('board');
+    bd.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
+    bd.innerHTML = '';
+    for (let r=0; r<rows; r++)
+      for (let c=0; c<cols; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.r = r; cell.dataset.c = c;
+        cell.addEventListener('click', onLeft);
+        cell.addEventListener('contextmenu', onRight);
+        setCellDisplay(cell, r, c);
+        bd.appendChild(cell);
+      }
+  }
+
+  function setCellDisplay(cell, r, c) {
+    if (lost && board[r][c]===-1 && !flagged[r][c]) {
+      cell.textContent = MINE_EMOJI;
+      if (cell.dataset.hit) cell.classList.add('mine-hit');
+      cell.classList.add('open');
+      return;
+    }
+    if (flagged[r][c]) { cell.textContent = FLAG_EMOJI; cell.classList.add('flagged'); return; }
+    if (!revealed[r][c]) { cell.textContent = HIDDEN_EMOJI; return; }
+    cell.classList.add('open');
+    if (board[r][c] === -1) { cell.textContent = MINE_EMOJI; return; }
+    if (board[r][c] === 0)  { cell.textContent = cellPokemons[r][c]; return; }
+    const num = document.createElement('span');
+    num.className = `num n${board[r][c]}`;
+    num.textContent = board[r][c];
+    cell.textContent = '';
+    cell.appendChild(num);
+  }
+
+  function updateCell(r, c) {
+    const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`);
+    if (cell) setCellDisplay(cell, r, c);
+  }
+
+  // ── Clicks ────────────────────────────────────────────────────────────────
+  function onLeft(e) {
+    const r = +this.dataset.r, c = +this.dataset.c;
+    if (lost || won || flagged[r][c] || revealed[r][c]) return;
+    if (!started) {
+      started = true;
+      placeMines(r, c);
+      timerInterval = setInterval(()=>{
+        seconds++;
+        document.getElementById('timer').textContent = seconds;
+      }, 1000);
+    }
+    reveal(r, c);
+    checkWin();
+  }
+
+  function onRight(e) {
+    e.preventDefault();
+    const r = +this.dataset.r, c = +this.dataset.c;
+    if (lost || won || revealed[r][c]) return;
+    flagged[r][c] = !flagged[r][c];
+    const remaining = mines - flagged.flat().filter(Boolean).length;
+    document.getElementById('mineCount').textContent = remaining;
+    updateCell(r, c);
+  }
+
+  // ── Revelar (flood fill) ──────────────────────────────────────────────────
+  function reveal(r, c) {
+    if (r<0||r>=rows||c<0||c>=cols) return;
+    if (revealed[r][c] || flagged[r][c]) return;
+    revealed[r][c] = true;
+    if (board[r][c] === -1) {
+      document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`).dataset.hit = 1;
+      gameLost();
+      return;
+    }
+    updateCell(r, c);
+    if (board[r][c] === 0)
+      neighbors(r,c).forEach(([nr,nc]) => reveal(nr,nc));
+  }
+
+  // ── Victoria / Derrota ────────────────────────────────────────────────────
+  function gameLost() {
+    clearInterval(timerInterval);
+    lost = true;
+    // mostrar todas las minas
+    for (let r=0;r<rows;r++) for (let c=0;c<cols;c++)
+      if (board[r][c]===-1) updateCell(r,c);
+    document.getElementById('status').textContent = '💥 ¡Un Legendario te venció!';
+    showOverlay('💥 ¡Game Over!',
+      `Un Legendario te ha capturado.\nTiempo: ${seconds}s\n¡Inténtalo de nuevo, entrenador!`);
+  }
+
+  function checkWin() {
+    const totalSafe = rows*cols - mines;
+    const revealedSafe = revealed.flat().filter(Boolean).length;
+    if (revealedSafe >= totalSafe) {
+      clearInterval(timerInterval);
+      won = true;
+      document.getElementById('status').textContent = '🏆 ¡Eres el Campeón Pokémon!';
+      showOverlay('🏆 ¡Victoria!',
+        `Has revelado todos los Pokémon seguros.\nTiempo: ${seconds}s\n¡Eres el mejor entrenador!`);
+    }
+  }
+
+  function showOverlay(title, msg) {
+    document.getElementById('overlayTitle').textContent = title;
+    document.getElementById('overlayMsg').textContent   = msg;
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  // ── Botón y primer render ─────────────────────────────────────────────────
+  document.getElementById('btnNew').addEventListener('click', newGame);
+  document.getElementById('difficulty').addEventListener('change', newGame);
+  newGame();
+  </script>
+</body>
+</html>
